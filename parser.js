@@ -1,3 +1,5 @@
+var shapegrammar = shapegrammar || {};
+
 shapegrammar.parser = (function() {
   "use strict";
 

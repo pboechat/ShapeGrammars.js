@@ -3,11 +3,108 @@
 <head lang="en">
     <meta charset="UTF-8">
     <title></title>
-    <script src="parser.js"></script>
-    <script src="interpreter.js"></script>
-    <script src="core.js"></script>
+    <script type="text/javascript" src="parser.js"></script>
+    <script type="text/javascript" src="interpreter.js"></script>
+    <script type="text/javascript">
+        var taEditor;
+        var taMessage;
+        var dWrapper;
+        var dLeftBar;
+        var dRightBar;
+        var dFooter;
+        var cViewer;
+
+        window.onload = function() {
+            taEditor = document.getElementById("taEditor");
+            taMessage = document.getElementById("taMessage");
+            dWrapper = document.getElementById("dWrapper");
+            dLeftBar = document.getElementById("dLeftBar");
+            dRightBar = document.getElementById("dRightBar");
+            dFooter = document.getElementById("dFooter");
+            cViewer = document.getElementById("cViewer");
+            resize();
+        }
+
+        window.onresize = function() {
+            resize();
+        }
+
+        window.onkeypress = function(e) {
+            if (e.keyCode == 10) {
+                execute();
+            }
+        }
+
+        function resize() {
+            dWrapper.width = window.innerWidth;
+            var width = window.innerWidth;
+            dFooter.width = width;
+            var halfWidth = width * 0.5;
+            dLeftBar.width = halfWidth;
+            dRightBar.width = halfWidth;
+            cViewer.width = halfWidth - 30;
+            taEditor.style.width = (halfWidth - 30) + "px";
+            taMessage.style.width = (width - 30) + "px";
+            console.log(taEditor.width);
+        }
+
+        function execute(){
+            try
+            {
+                var parseTree = shapegrammar.parser.parse(taEditor.value);
+                shapegrammar.interpreter.interpret(parseTree, cViewer);
+                taMessage.value = "success";
+            } catch (e)
+            {
+                console.log(e.message);
+                taMessage.value = e.message;
+            }
+        }
+    </script>
+    <style>
+        #dWrapper {
+            overflow:hidden;
+        }
+
+        #dLeftBar {
+            float:left;
+        }
+
+        #dRightBar {
+            float:right;
+        }
+
+        #cViewer {
+            border: solid 1px #000000;
+        }
+
+        #taEditor {
+            resize: none;
+        }
+
+        #taMessage {
+            resize: none;
+        }
+
+        #dFooter {
+            clear:both;
+        }
+
+    </style>
 </head>
 <body>
-
+    <div id="dWrapper">
+        <div id="dLeftBar">
+            <textarea id="taEditor" rows="30"></textarea>
+            <br/>
+            <input type="button" value="execute" onclick="execute()" />
+        </div>
+        <div id="dRightBar">
+            <canvas id="cViewer" height="480"></canvas>
+        </div>
+        <div id="dFooter">
+            <textarea id="taMessage" rows="10" readonly></textarea>
+        </div>
+    </div>
 </body>
 </html>
