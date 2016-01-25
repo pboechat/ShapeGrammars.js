@@ -5,23 +5,44 @@
     <title></title>
     <script type="text/javascript" src="parser.js"></script>
     <script type="text/javascript" src="interpreter.js"></script>
+    <script type="text/javascript" src="three.js"></script>
     <script type="text/javascript">
         var taEditor;
         var taMessage;
-        var dWrapper;
-        var dLeftBar;
-        var dRightBar;
-        var dFooter;
-        var cViewer;
+        var dvWrapper;
+        var dvLeftBar;
+        var dvRightBar;
+        var dvFooter;
+        var cvViewer;
+        var slAxiomType;
+        var txAxiomSizeX, txAxiomSizeY, txAxiomSizeZ;
+        var txAxiomPositionX, txAxiomPositionY, txAxiomPositionZ;
+        var txSymbol;
+        var widePanels;
 
         window.onload = function() {
             taEditor = document.getElementById("taEditor");
             taMessage = document.getElementById("taMessage");
-            dWrapper = document.getElementById("dWrapper");
-            dLeftBar = document.getElementById("dLeftBar");
-            dRightBar = document.getElementById("dRightBar");
-            dFooter = document.getElementById("dFooter");
-            cViewer = document.getElementById("cViewer");
+            dvWrapper = document.getElementById("dvWrapper");
+            dvLeftBar = document.getElementById("dvLeftBar");
+            dvRightBar = document.getElementById("dvRightBar");
+            dvFooter = document.getElementById("dvFooter");
+            cvViewer = document.getElementById("cvViewer");
+            txAxiomSizeX = document.getElementById("txAxiomSizeX");
+            txAxiomSizeY = document.getElementById("txAxiomSizeY");
+            txAxiomSizeZ = document.getElementById("txAxiomSizeZ");
+            txAxiomPositionX = document.getElementById("txAxiomPositionX");
+            txAxiomPositionY = document.getElementById("txAxiomPositionY");
+            txAxiomPositionZ = document.getElementById("txAxiomPositionZ");
+            txSymbol = document.getElementById("txSymbol");
+            widePanels = document.getElementsByClassName("widePanel");
+            slAxiomType = document.getElementById("slAxiomType");
+            for (var i = 0; i < shapegrammar.AxiomTypes.length; i++) {
+                var option = new Option();
+                option.text = shapegrammar.AxiomTypes[i];
+                option.selected = i == 0;
+                slAxiomType.appendChild(option);
+            }
             resize();
         }
 
@@ -36,23 +57,43 @@
         }
 
         function resize() {
-            dWrapper.width = window.innerWidth;
+            dvWrapper.width = window.innerWidth;
             var width = window.innerWidth;
-            dFooter.width = width;
+            dvFooter.width = width;
             var halfWidth = width * 0.5;
-            dLeftBar.width = halfWidth;
-            dRightBar.width = halfWidth;
-            cViewer.width = halfWidth - 30;
-            taEditor.style.width = (halfWidth - 30) + "px";
-            taMessage.style.width = (width - 30) + "px";
-            console.log(taEditor.width);
+            dvLeftBar.width = halfWidth;
+            dvRightBar.width = halfWidth;
+            cvViewer.width = halfWidth - 30;
+            taEditor.style.width = (halfWidth - 40) + "px";
+            taEditor.style.height = (cvViewer.height - 5) + "px";
+            taMessage.style.width = (width - 40) + "px";
+            for (var i = 0; i < widePanels.length; i++) {
+                widePanels[i].style.width = (width - 23) + "px";
+            }
+        }
+
+        function intType(event) {
+            if (event.keyCode < 48 || event.keyCode > 57) {
+                if ("cancelable" in event) {
+                    if (event.cancelable)
+                        event.preventDefault();
+                }
+                else
+                    event.returnValue = false;
+            }
         }
 
         function execute(){
             try
             {
-                var parseTree = shapegrammar.parser.parse(taEditor.value);
-                shapegrammar.interpreter.interpret(parseTree, cViewer);
+                shapegrammar.interpreter.interpret(
+                        { type: shapegrammar.AxiomTypes[slAxiomType.selectedIndex],
+                            size: new THREE.Vector3(parseFloat(txAxiomSizeX.value), parseFloat(txAxiomSizeY.value), parseFloat(txAxiomSizeZ.value)),
+                            position: new THREE.Vector3(parseFloat(txAxiomPositionX.value), parseFloat(txAxiomPositionY.value), parseFloat(txAxiomPositionZ.value))
+                        },
+                        txSymbol.value,
+                        shapegrammar.parser.parse(taEditor.value),
+                        cvViewer);
                 taMessage.value = "success";
             } catch (e)
             {
@@ -62,48 +103,118 @@
         }
     </script>
     <style>
-        #dWrapper {
+        body {
+            font-family:verdana;
+            font-size: 12px;
+        }
+
+        #dvWrapper {
             overflow:hidden;
         }
 
-        #dLeftBar {
+        #dvLeftBar {
             float:left;
         }
 
-        #dRightBar {
+        #dvRightBar {
             float:right;
         }
 
-        #cViewer {
+        #cvViewer {
             border: solid 1px #000000;
         }
 
         #taEditor {
             resize: none;
+            height: 100%;
         }
 
         #taMessage {
             resize: none;
         }
 
-        #dFooter {
+        #dvFooter {
             clear:both;
+        }
+
+        #dvControls {
+            clear:both;
+        }
+
+        #slAxiomType {
+            width:130px;
+        }
+
+        .panel, .widePanel {
+            border:solid 1px black;
+            margin: 5px;
+            display:inline-block;
+        }
+
+        .panelSpacing {
+            margin:5px;
+        }
+
+        .panelTitle {
+            width: 100%;
+            height: 24px;
+            float:left;
         }
 
     </style>
 </head>
 <body>
-    <div id="dWrapper">
-        <div id="dLeftBar">
-            <textarea id="taEditor" rows="30"></textarea>
-            <br/>
-            <input type="button" value="execute" onclick="execute()" />
+    <div id="dvWrapper">
+        <div id="dvLeftBar">
+            <textarea id="taEditor"></textarea>
         </div>
-        <div id="dRightBar">
-            <canvas id="cViewer" height="480"></canvas>
+        <div id="dvRightBar">
+            <canvas id="cvViewer" height="480"></canvas>
         </div>
-        <div id="dFooter">
-            <textarea id="taMessage" rows="10" readonly></textarea>
+        <div id="dvControls">
+            <div class="widePanel">
+                <div class="panelSpacing">
+                    <span class="panelTitle">Controls</span>
+                    <input type="button" id="btExecute" value="execute" onclick="execute()" />
+                    <div class="panel" style="width:140px;">
+                        <div class="panelSpacing">
+                            <span class="panelTitle">Type</span>
+                            <select id="slAxiomType">
+                            </select>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panelSpacing">
+                            <span class="panelTitle">Size</span>
+                            X: <input type="text" id="txAxiomSizeX" style="width:20px;" value="1" onkeydown="intType(event)" />
+                            Y: <input type="text" id="txAxiomSizeY" style="width:20px;" value="1" onkeydown="intType(event)" />
+                            Z: <input type="text" id="txAxiomSizeZ" style="width:20px;" value="1" onkeydown="intType(event)" />
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panelSpacing">
+                            <span class="panelTitle">Position</span>
+                            X: <input type="text" id="txAxiomPositionX" style="width:20px;" value="0" onkeydown="intType(event)" />
+                            Y: <input type="text" id="txAxiomPositionY" style="width:20px;" value="0" onkeydown="intType(event)" />
+                            Z: <input type="text" id="txAxiomPositionZ" style="width:20px;" value="0" onkeydown="intType(event)" />
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panelSpacing">
+                            <span class="panelTitle">Symbol</span>
+                            <input type="text" id="txSymbol" style="width:60px;" value="" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="dvFooter">
+            <div class="widePanel">
+                <div class="panelSpacing">
+                    <span class="panelTitle">Message</span>
+                    <textarea id="taMessage" rows="10" readonly></textarea>
+                </div>
+            </div>
         </div>
     </div>
 </body>
