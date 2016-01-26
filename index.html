@@ -3,9 +3,11 @@
 <head lang="en">
     <meta charset="UTF-8">
     <title></title>
+    <script type="text/javascript" src="three.js"></script>
+    <script type="text/javascript" src="TrackballControls.js"></script>
     <script type="text/javascript" src="parser.js"></script>
     <script type="text/javascript" src="interpreter.js"></script>
-    <script type="text/javascript" src="three.js"></script>
+    <script type="text/javascript" src="renderer.js"></script>
     <script type="text/javascript">
         var taEditor;
         var taMessage;
@@ -13,12 +15,13 @@
         var dvLeftBar;
         var dvRightBar;
         var dvFooter;
-        var cvViewer;
         var slAxiomType;
         var txAxiomSizeX, txAxiomSizeY, txAxiomSizeZ;
         var txAxiomPositionX, txAxiomPositionY, txAxiomPositionZ;
         var txSymbol;
         var widePanels;
+        var renderer;
+        var terminals = [];
 
         window.onload = function() {
             taEditor = document.getElementById("taEditor");
@@ -27,7 +30,6 @@
             dvLeftBar = document.getElementById("dvLeftBar");
             dvRightBar = document.getElementById("dvRightBar");
             dvFooter = document.getElementById("dvFooter");
-            cvViewer = document.getElementById("cvViewer");
             txAxiomSizeX = document.getElementById("txAxiomSizeX");
             txAxiomSizeY = document.getElementById("txAxiomSizeY");
             txAxiomSizeZ = document.getElementById("txAxiomSizeZ");
@@ -43,6 +45,10 @@
                 option.selected = i == 0;
                 slAxiomType.appendChild(option);
             }
+            renderer = new shapegrammar.Renderer(480, 480, dvRightBar);
+            renderer.canvas.style.border = "solid 1px black";
+            renderer.camera.position.set(0, 0, -5);
+            renderer.camera.lookAt(renderer.scene.position);
             resize();
         }
 
@@ -63,9 +69,13 @@
             var halfWidth = width * 0.5;
             dvLeftBar.width = halfWidth;
             dvRightBar.width = halfWidth;
-            cvViewer.width = halfWidth - 30;
+            var canvasWidth = (halfWidth - 30);
+            renderer.canvas.style.width = canvasWidth + "px";
+            renderer.camera.aspect = canvasWidth / 480.0;
+            renderer.camera.updateProjectionMatrix();
+            renderer.renderer.setSize(canvasWidth, 480.0);
             taEditor.style.width = (halfWidth - 40) + "px";
-            taEditor.style.height = (cvViewer.height - 5) + "px";
+            taEditor.style.height = (renderer.canvas.height - 5) + "px";
             taMessage.style.width = (width - 40) + "px";
             for (var i = 0; i < widePanels.length; i++) {
                 widePanels[i].style.width = (width - 23) + "px";
@@ -86,14 +96,17 @@
         function execute(){
             try
             {
-                shapegrammar.interpreter.interpret(
+                for (var i = 0; i < terminals.length; i++)
+                    renderer.scene.remove(terminals[i]);
+                terminals = shapegrammar.interpreter.interpret(
                         { type: shapegrammar.AxiomTypes[slAxiomType.selectedIndex],
                             size: new THREE.Vector3(parseFloat(txAxiomSizeX.value), parseFloat(txAxiomSizeY.value), parseFloat(txAxiomSizeZ.value)),
                             position: new THREE.Vector3(parseFloat(txAxiomPositionX.value), parseFloat(txAxiomPositionY.value), parseFloat(txAxiomPositionZ.value))
                         },
                         txSymbol.value,
-                        shapegrammar.parser.parse(taEditor.value),
-                        cvViewer);
+                        shapegrammar.parser.parse(taEditor.value));
+                for (var i = 0; i < terminals.length; i++)
+                    renderer.scene.add(terminals[i]);
                 taMessage.value = "success";
             } catch (e)
             {
@@ -118,10 +131,6 @@
 
         #dvRightBar {
             float:right;
-        }
-
-        #cvViewer {
-            border: solid 1px #000000;
         }
 
         #taEditor {
@@ -169,7 +178,6 @@
             <textarea id="taEditor"></textarea>
         </div>
         <div id="dvRightBar">
-            <canvas id="cvViewer" height="480"></canvas>
         </div>
         <div id="dvControls">
             <div class="widePanel">
