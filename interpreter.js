@@ -22,13 +22,29 @@ shapegrammar.interpreter = (function() {
             newType = "Box";
         } else
             throw new Error("don't know how to extrude " + shape.type);
+        var transform = new THREE.Matrix4();
+        if (this.axis == "X") {
+            transform = transform.set(
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0);
+        } else if (this.axis == "Y") {
+            transform = transform.set(
+                -1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0);
+        } else if (this.axis == "Z") {
+            transform = transform.set(
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0);
+        }
         context.forward(this.operation, {
             type: newType,
-            model: shape.model.clone().multiply(new THREE.Matrix4().set(
-                1.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, -1.0, 0.0,
-                0.0, 1.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 1.0)),
+            model: shape.model.clone().multiply(transform),
             size: new THREE.Vector3(shape.size.x, this.extent, shape.size.y)
         });
     }
@@ -47,8 +63,8 @@ shapegrammar.interpreter = (function() {
                         new THREE.Matrix4().makeTranslation(0, halfExtents.y, 0).multiply(
                             new THREE.Matrix4().set(
                                 1.0, 0.0, 0.0, 0.0,
-                                0.0, 0.0, 1.0, 0.0,
-                                0.0, -1.0, 0.0, 0.0,
+                                0.0, 0.0, -1.0, 0.0,
+                                0.0, 1.0, 0.0, 0.0,
                                 0.0, 0.0, 0.0, 1.0
                             )
                         )
@@ -62,7 +78,7 @@ shapegrammar.interpreter = (function() {
                     new THREE.Matrix4().makeTranslation(0, -halfExtents.y, 0).multiply(
                         new THREE.Matrix4().set(
                             1.0, 0.0, 0.0, 0.0,
-                            0.0, 0.0, -1.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
                             0.0, 1.0, 0.0, 0.0,
                             0.0, 0.0, 0.0, 1.0
                         )
@@ -74,7 +90,7 @@ shapegrammar.interpreter = (function() {
             context.forward(this.sideOperation, {
                 type: "Quad",
                 model: shape.model.clone().multiply(
-                    new THREE.Matrix4().makeTranslation(0, 0, -halfExtents.z).multiply(
+                    new THREE.Matrix4().makeTranslation(0, 0, halfExtents.z).multiply(
                         new THREE.Matrix4().set(
                             -1.0, 0.0, 0.0, 0.0,
                             0.0, 1.0, 0.0, 0.0,
@@ -89,7 +105,14 @@ shapegrammar.interpreter = (function() {
             context.forward(this.sideOperation, {
                 type: "Quad",
                 model: shape.model.clone().multiply(
-                    new THREE.Matrix4().makeTranslation(0, 0, halfExtents.z)
+                    new THREE.Matrix4().makeTranslation(0, 0, -halfExtents.z).multiply(
+                        new THREE.Matrix4().set(
+                            1.0, 0.0, 0.0, 0.0,
+                            0.0, 1.0, 0.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
+                            0.0, 0.0, 0.0, 1.0
+                        )
+                    )
                 ),
                 size: new THREE.Vector3(shape.size.x, shape.size.y, 1.0)
             });
@@ -99,9 +122,9 @@ shapegrammar.interpreter = (function() {
                 model: shape.model.clone().multiply(
                     new THREE.Matrix4().makeTranslation(-halfExtents.x, 0, 0).multiply(
                         new THREE.Matrix4().set(
-                            0.0, 0.0, -1.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0,
                             0.0, 1.0, 0.0, 0.0,
-                            1.0, 0.0, 0.0, 0.0,
+                            -1.0, 0.0, 0.0, 0.0,
                             0.0, 0.0, 0.0, 1.0
                         )
                     )
@@ -114,9 +137,9 @@ shapegrammar.interpreter = (function() {
                 model: shape.model.clone().multiply(
                     new THREE.Matrix4().makeTranslation(halfExtents.x, 0, 0).multiply(
                         new THREE.Matrix4().set(
-                            0.0, 0.0, 1.0, 0.0,
+                            0.0, 0.0, -1.0, 0.0,
                             0.0, 1.0, 0.0, 0.0,
-                            -1.0, 0.0, 0.0, 0.0,
+                            1.0, 0.0, 0.0, 0.0,
                             0.0, 0.0, 0.0, 1.0
                         )
                     )
@@ -137,7 +160,7 @@ shapegrammar.interpreter = (function() {
         var z = (this.z > 0) ? this.z : shape.size.z * Math.abs(this.z);
         context.forward(this.operation, {
             type: shape.type,
-            model: shape.model,
+            model: shape.model.clone(),
             size: new THREE.Vector3(x, y, z)
         });
     }
@@ -147,11 +170,9 @@ shapegrammar.interpreter = (function() {
     }
 
     Rotate.prototype.apply = function(shape, context) {
-        var transform = new THREE.Matrix4();
-        transform.makeRotationFromEuler(new THREE.Vector3(this.x, this.y, this.z));
         context.forward(this.operation.apply, {
             type: shape.type,
-            model: transform.multiply(shape.model),
+            model: shape.model.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Vector3(this.x, this.y, this.z))),
             size: shape.size
         });
     }
@@ -161,11 +182,9 @@ shapegrammar.interpreter = (function() {
     }
 
     Translate.prototype.apply = function(shape, context) {
-        var transform = new THREE.Matrix4();
-        transform.makeTranslation(this.x, this.y, this.z);
         context.forward(this.operation, {
             type: shape.type,
-            model: transform.multiply(shape.model),
+            model: shape.model.clone().multiply(new THREE.Matrix4().makeTranslation(this.x, this.y, this.z)),
             size: shape.size
         });
     }

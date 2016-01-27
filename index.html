@@ -47,8 +47,8 @@
             }
             renderer = new shapegrammar.Renderer(480, 480, dvRightBar);
             renderer.canvas.style.border = "solid 1px black";
-            renderer.camera.position.set(0, 0, -5);
-            renderer.camera.lookAt(renderer.scene.position);
+            renderer.camera.position.set(0, 0, 5);
+            renderer.camera.lookAt(new THREE.Vector3(0,0,0));
             resize();
         }
 
@@ -82,15 +82,21 @@
             }
         }
 
-        function intType(event) {
-            if (event.keyCode < 48 || event.keyCode > 57) {
-                if ("cancelable" in event) {
-                    if (event.cancelable)
-                        event.preventDefault();
-                }
-                else
-                    event.returnValue = false;
+        function intType(field, event) {
+            if ((event.keyCode == 173 && field.value.length == 0) ||
+                (event.keyCode == 190 && field.value.length > 0 && field.value.indexOf(".") == -1) ||
+                event.keyCode == 37 ||
+                event.keyCode == 39 ||
+                event.keyCode == 8 ||
+                event.keyCode == 9 ||
+                (event.keyCode >= 48 && event.keyCode <= 57))
+                return;
+            if ("cancelable" in event) {
+                if (event.cancelable)
+                    event.preventDefault();
             }
+            else
+                event.returnValue = false;
         }
 
         function execute(){
@@ -194,17 +200,17 @@
                     <div class="panel">
                         <div class="panelSpacing">
                             <span class="panelTitle">Size</span>
-                            X: <input type="text" id="txAxiomSizeX" style="width:20px;" value="1" onkeydown="intType(event)" />
-                            Y: <input type="text" id="txAxiomSizeY" style="width:20px;" value="1" onkeydown="intType(event)" />
-                            Z: <input type="text" id="txAxiomSizeZ" style="width:20px;" value="1" onkeydown="intType(event)" />
+                            X: <input type="text" id="txAxiomSizeX" style="width:20px;" value="1" onkeydown="intType(this, event)" />
+                            Y: <input type="text" id="txAxiomSizeY" style="width:20px;" value="1" onkeydown="intType(this, event)" />
+                            Z: <input type="text" id="txAxiomSizeZ" style="width:20px;" value="1" onkeydown="intType(this, event)" />
                         </div>
                     </div>
                     <div class="panel">
                         <div class="panelSpacing">
                             <span class="panelTitle">Position</span>
-                            X: <input type="text" id="txAxiomPositionX" style="width:20px;" value="0" onkeydown="intType(event)" />
-                            Y: <input type="text" id="txAxiomPositionY" style="width:20px;" value="0" onkeydown="intType(event)" />
-                            Z: <input type="text" id="txAxiomPositionZ" style="width:20px;" value="0" onkeydown="intType(event)" />
+                            X: <input type="text" id="txAxiomPositionX" style="width:20px;" value="0" onkeydown="intType(this, event)" />
+                            Y: <input type="text" id="txAxiomPositionY" style="width:20px;" value="0" onkeydown="intType(this, event)" />
+                            Z: <input type="text" id="txAxiomPositionZ" style="width:20px;" value="0" onkeydown="intType(this, event)" />
                         </div>
                     </div>
                     <div class="panel">
