@@ -1,58 +1,105 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
 ParseTree "parseTree"
   = productions:(Production)*
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Production "production"
   = _ predecessor:Identifier _ "-->" _ successor:Successor _
   {
   	return { predecessor: predecessor, successor: successor };
   }
   
+////////////////////////////////////////////////////////////////////////////////////////////////////
+NIL "NIL"
+  = "NIL" { 
+  		return null;
+    }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Successor "successor"
-  = ShapeOperation / Identifier
+  = ShapeOperation / Identifier / NIL
   
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Identifier "identifier"
   = value: ([a-zA-Z]+) { return value.join(""); }
 
-ShapeOperation "shape_operation"
-  = operator:(
-        "extrude" / 
-        "comp" /
-        "split" /
-        "s" / 
-        "r" / 
-        "t"
-        ) 
-    _ "(" _ args0:(Expression (_ "," _ Expression)*)? _ ")" 
-    args1:(_ (("{" _ ((Float _ ":" _)? Successor) (_ "|" _ ((Float _ ":" _)? Successor))* _ "}") / Successor)) {
-    	var parameters = [];
-        if (args0 != null && args0.length > 0) {
-        	parameters.push(args0[0]);
-            var field = args0[1];
-            for (var i = 0; i < field.length; i++) {
-            	parameters.push(field[i][3]);
-            }
-        }
-        var operations = [];
-        // multiple operations
-        if (args1[1].constructor === Array) {
-        	var field = args1[1][2];
-            var operationParam = (field[0] != null && field[0].length > 0) ? field[0][0] : null;
-            var operationValue = field[1];
-        	operations.push({ parameter: operationParam, value: operationValue });
-            for (var i = 0; i < args1[1][3].length; i++) {
-            	field = args1[1][3][i][3];
-            	operationParam = (field[0] != null && field[0].length > 0) ? field[0][0] : null;
-                operationValue = field[1]; 
-            	operations.push({ parameter: operationParam, value: operationValue });
-            }
-        }
-        // single operation
-        else {
-        	operations.push(args1[1]);
-        }
-    	return { operator: operator, parameters: parameters, operations: operations };
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Translate "translate" 
+	= "t" _ "(" _ x:Expression _ "," _ y: Expression _ "," _ z:Expression _ ")" _ successor:Successor {
+    	return { operator: "t", parameters: [x, y, z], operations: [successor] };
+	}
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Rotate "rotate" 
+	= "r" _ "(" _ x:Expression _ "," _ y: Expression _ "," _ z:Expression _ ")" _ successor:Successor {
+    	return { operator: "r", parameters: [x, y, z], operations: [successor] };
+	}
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Scale "scale" 
+	= "s" _ "(" _ x:Expression _ "," _ y: Expression _ "," _ z:Expression _ ")" _ successor:Successor {
+    	return { operator: "s", parameters: [x, y, z], operations: [successor] };
+	}
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////
+Extrude "extrude"
+	= "extrude" _ "(" _ axis:(Axis _ "," _)? height:Expression _ ")" _ successor: Successor {
+    	var axis = (axis != null) ? axis[0] : null;
+    	return { operator: "extrude", parameters: [axis, height], operations: [successor] };
     }
     
+////////////////////////////////////////////////////////////////////////////////////////////////////
+ComponentSelector "component_selector" =
+	"f" / "e" / "v"
+
+SemanticSelector "semantic_selector" =
+    "front" / "back" / "left" / "right" / "top" / "bottom" / "side" / "all"
+
+ComponentSplitParameter "component_split_parameter" =
+	semanticSelector:SemanticSelector _ operator:(":" / "=") _ successor:Successor {
+    	return { semanticSelector: semanticSelector, operator: operator, successor: successor };
+    }
+
+ComponentSplit "component_split"
+	= "comp" _ "(" _ componentSelector:ComponentSelector _ ")" _ "{" 
+    		args:(_ ComponentSplitParameter (_ "," _ ComponentSplitParameter)* _)?
+        "}" {
+        var operations = [args[1]];
+        for (var i = 0; i < args[2].length; i++)
+        	operations.push(args[2][i][3]);
+        return { operator: "comp", parameters: [componentSelector], operations: operations }
+    }
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////
+AdjustSelector "adjust_selector" =
+	"adjust" / "noAdjust"
+
+SizePrefix "size_prefix" =
+    "'" / "~"
+
+XYZSplitParameter "xyz_split_parameter" =
+	prefix:(SizePrefix _)? size:Expression _ ":" _ successor:Successor {
+    	var prefix = (prefix != null) ? prefix[0] : null;
+    	return { prefix: prefix, size: size, successor: successor };
+    }
+
+XYZSplit "xyz_split"
+	= "split" _ "(" _ splitAxis:Axis adjustSelector:(_ "," _ AdjustSelector)? _ ")" _ "{" _
+    	args:(_ XYZSplitParameter (_ "," _ XYZSplitParameter)* _)?
+    "}" repeatSwitch:(_ "*" _)? {
+    	var operations = [args[1]];
+        for (var i = 0; i < args[2].length; i++)
+        	operations.push(args[2][i][3]);
+        var adjustSelector = (adjustSelector != null) ? adjustSelector[3] : null;
+        var repeat = (repeatSwitch != null) ? repeatSwitch[1] == "*" : false;
+        return { operator: "xyz_split", parameters: [splitAxis, adjustSelector, repeat], operations: operations };
+    }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+ShapeOperation "shape_operation"
+  = Translate / Rotate / Scale / Extrude / ComponentSplit / XYZSplit
+    
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Expression "expression"
   = head:Factor tail:(_ ("+" / "-" / "*" / "/" / "%" / "^") _ Factor)* {
 		var result = head;
@@ -68,16 +115,20 @@ Expression "expression"
 		return result;
     }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Axis "axis"
   = "X" / "Y" / "Z"
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Factor "factor"
   = "(" _ expression:Expression _ ")" { return expression; } /
   Axis /
   Float
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 Float "float"
   = ([-]?[0-9]+("."[0-9]*)?) { return parseFloat(text()); }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 _ "whitespace"
   = [ \t\n\r]*
