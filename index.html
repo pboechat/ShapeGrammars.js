@@ -120,6 +120,56 @@
                 taMessage.value = e.message;
             }
         }
+
+        function exportToOBJ(){
+            var vertices = [];
+            var normals = [];
+            var indices = [];
+            var uvs = [];
+            var geometry = new THREE.Geometry();
+            for (var i = 0; i < terminals.length; i++) {
+                var mesh = terminals[i];
+                geometry.merge(mesh.geometry, mesh.matrix, 0);
+            }
+            for (var j = 0; j < geometry.vertices.length; j++) {
+                vertices.push(geometry.vertices[j]);
+            }
+            for (var j = 0; j < geometry.faces.length; j++) {
+                var face = geometry.faces[j];
+                indices = indices.concat([face.a, face.b, face.c]);
+                normals = normals.concat([face.vertexNormals[0], face.vertexNormals[1], face.vertexNormals[2]]);
+            }
+            if (geometry.faceVertexUvs.length > 0) {
+                for (var j = 0; j < geometry.faceVertexUvs[0].length; j++) {
+                    uvs = uvs.concat(geometry.faceVertexUvs[0][j]);
+                }
+            }
+
+            var objContent = "# " + vertices.length + " vertex positions\n";
+            for (var i = 0; i < vertices.length; i++) {
+                var v = vertices[i];
+                objContent += "v " + v.x + " " + v.y + " " + v.z + "\n";
+            }
+            objContent += "# " + uvs.length + " UV coordinates\n";
+            for (var i = 0; i < uvs.length; i++) {
+                var uv = uvs[i];
+                objContent += "vt " + uv.x + " " + uv.y + "\n";
+            }
+            objContent += "# " + normals.length + " vertex normals\n";
+            for (var i = 0; i < normals.length; i++) {
+                var n = normals[i];
+                objContent += "vn " + n.x + " " + n.y + " " + n.z + "\n";
+            }
+            objContent += "# " + (indices.length / 3) + " faces";
+            for (var i = 0; i < indices.length; i += 3) {
+                var i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+                objContent += "f " + i0 + "/" + i0 + "/" + i0 + " " +
+                i1 + "/" + i1 + "/" + i1 + " " +
+                i2 + "/" + i2 + "/" + i2 + "\n";
+            }
+            // TODO:
+            alert(objContent);
+        }
     </script>
     <style>
         body {
@@ -219,6 +269,7 @@
                             <input type="text" id="txSymbol" style="width:60px;" value="" />
                         </div>
                     </div>
+                    <input type="button" id="btExportToOBJ" value="export to OBJ" onclick="exportToOBJ()" />
                 </div>
             </div>
         </div>
