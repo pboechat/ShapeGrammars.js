@@ -99,11 +99,10 @@
                 event.returnValue = false;
         }
 
-        function execute(){
+        function execute() {
             try
             {
-                for (var i = 0; i < terminals.length; i++)
-                    renderer.scene.remove(terminals[i]);
+                renderer.clearTerminals();
                 terminals = shapegrammar.interpreter.interpret(
                         { type: shapegrammar.AxiomTypes[slAxiomType.selectedIndex],
                             size: new THREE.Vector3(parseFloat(txAxiomSizeX.value), parseFloat(txAxiomSizeY.value), parseFloat(txAxiomSizeZ.value)),
@@ -112,7 +111,7 @@
                         txSymbol.value,
                         shapegrammar.parser.parse(taEditor.value));
                 for (var i = 0; i < terminals.length; i++)
-                    renderer.scene.add(terminals[i]);
+                    renderer.addTerminal(terminals[i]);
                 taMessage.value = "success";
             } catch (e)
             {

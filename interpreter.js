@@ -4,6 +4,107 @@ shapegrammar.AxiomTypes = [ "Box", "Quad" ];
 
 shapegrammar.interpreter = (function() {
 
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    var Axis = {X:null, Y:null, Z:null};
+    function parseAxis(value) {
+        value = value.trim().toUpperCase();
+        if (!(value in Axis))
+            throw new Error(value + " is not an axis");
+        return value;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    var ComponentSelector = {F:null, E:null, V:null};
+    function parseComponentSelector(value) {
+        value = value.trim().toUpperCase();
+        if (!(value in ComponentSelector))
+            throw new Error(value + " is not a component selector");
+        return value;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    var SemanticSelector = { FRONT:0, BACK:1, LEFT:2, RIGHT:3, TOP:4, BOTTOM:5, SIDE:6, ALL:7 };
+    function parseSemanticSelector(value) {
+        value = value.trim().toUpperCase();
+        if (!(value in SemanticSelector))
+            throw new Error(value + " is not a semantic selector");
+        return value;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    function parseComponentSplitOperator(value) {
+        if (value != ":" && value != "=")
+            throw new Error(value + " is not a comp operator");
+        return value;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    function cloneGeometry(geometry) {
+        var vertices = new Array(geometry.vertices.length),
+            normals = new Array(geometry.normals.length),
+            uvs = new Array(geometry.uvs.length),
+            faces = new Array(geometry.faces.length);
+        for (var i = 0; i < geometry.vertices.length; i++)
+            vertices[i] = geometry.vertices[i].clone();
+        for (var i = 0; i < geometry.normals.length; i++)
+            normals[i] = geometry.normals[i].clone();
+        for (var i = 0; i < geometry.uvs.length; i++)
+            uvs[i] = geometry.uvs[i].clone();
+        for (var i = 0; i < geometry.faces.length; i++)
+            faces[i] = geometry.faces[i].slice();
+        return {
+            vertices: vertices,
+            normals: normals,
+            uvs: uvs,
+            faces: faces
+
+        };
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    function cloneShape(symbol) {
+        return {
+            initialShape: {
+                name: symbol.initialShape.name,
+                startRule: symbol.initialShape.startRule,
+                origin: {
+                    p: symbol.initialShape.origin.p.clone(),
+                    o: symbol.initialShape.origin.o.clone()
+                }
+            },
+            scope: {
+                t: symbol.scope.t.clone(),
+                r: symbol.scope.r.clone(),
+                s: symbol.scope.s.clone()
+            },
+            pivot: {
+                p: symbol.pivot.p.clone(),
+                o: symbol.pivot.o.clone()
+            },
+            geometry: cloneGeometry(symbol.geometry),
+            comp: {
+                sel: symbol.comp.sel,
+                index: symbol.comp.index,
+                total: symbol.comp.total
+            }
+        };
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     var Call = function(successor) {
         this.successor = successor;
     }
@@ -164,61 +265,84 @@ shapegrammar.interpreter = (function() {
     }
 
     ComponentSplit.prototype.apply = function(shape, context) {
-        if (this.componentSelector != "F")
-        {
-            throw new Error("unsupported component selector");
+        var right = new THREE.Vector3(1, 0, 0),
+            up = new THREE.Vector3(0, 1, 0),
+            back = new THREE.Vector3(0, 0, 1);
+        var facesByDirection = [[],[],[],[],[],[]];
+        var halfPI = Math.PI * 0.5,
+            oneHalfPI = Math.PI * 1.5;
+        for (var i = 0; i < shape.geometry.faces.length; i += 3) {
+            var p0 = shape.geometry.vertices[shape.geometry.faces[i][0]],
+                p1 = shape.geometry.vertices[shape.geometry.faces[i + 1][0]],
+                p2 = shape.geometry.vertices[shape.geometry.faces[i + 2][0]];
+            var n0 = shape.geometry.normals[shape.geometry.faces[i][1]],
+                n1 = shape.geometry.normals[shape.geometry.faces[i + 1][1]],
+                n2 = shape.geometry.normals[shape.geometry.faces[i + 2][1]];
+            var faceNormal = computeFaceNormal(p0, p1, p2, n0, n1, n2);
+            var a0 = faceNormal.angleTo(right);
+            if (a0 < halfPI && a0 > -halfPI)
+                facesByDirection[SemanticSelector.RIGHT].push(i);
+            else if (a0 > oneHalfPI && a0 < -oneHalfPI)
+                facesByDirection[SemanticSelector.LEFT].push(i);
+            a0 = faceNormal.angleTo(up);
+            if (a0 < halfPI && a0 > -halfPI)
+                facesByDirection[SemanticSelector.TOP].push(i);
+            else if (a0 > oneHalfPI && a0 < -oneHalfPI)
+                facesByDirection[SemanticSelector.BOTTOM].push(i);
+            a0 = faceNormal.angleTo(back);
+            if (a0 < halfPI && a0 > -halfPI)
+                facesByDirection[SemanticSelector.BACK].push(i);
+            else if (a0 > oneHalfPI && a0 < -oneHalfPI)
+                facesByDirection[SemanticSelector.FRONT].push(i);
         }
-        if (shape.type == "Box") {
-            var halfExtents = shape.size.clone().divideScalar(2.0);
-            for (var i = 0; i < this.operations.length; i++)
+        var halfExtents = shape.size.clone().divideScalar(2.0);
+        for (var i = 0; i < this.operations.length; i++)
+        {
+            var operation = this.operations[i];
+            if (operation.semanticSelector == "TOP")
             {
-                var operation = this.operations[i];
-                if (operation.semanticSelector == "TOP")
-                {
-                    this.forwardBoxTop(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "BOTTOM")
-                {
-                    this.forwardBoxBottom(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "BACK")
-                {
-                    this.forwardBoxBack(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "FRONT")
-                {
-                    this.forwardBoxFront(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "LEFT")
-                {
-                    this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "RIGHT")
-                {
-                    this.forwardBoxRight(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "SIDE")
-                {
-                    this.forwardBoxBack(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxFront(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxRight(shape, context, halfExtents, operation.successor);
-                }
-                else if (operation.semanticSelector == "ALL")
-                {
-                    this.forwardBoxTop(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxBottom(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxBack(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxFront(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
-                    this.forwardBoxRight(shape, context, halfExtents, operation.successor);
-                }
-                else
-                    // FIXME: checking invariants
-                    throw new Error("unknown semantic selector");
+                this.forwardFaces(facesByDirection[SemanticSelector.TOP]);
             }
-        } else
-            throw new Error("don't know how to comp " + shape.type);
+            else if (operation.semanticSelector == "BOTTOM")
+            {
+                this.forwardBoxBottom(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "BACK")
+            {
+                this.forwardBoxBack(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "FRONT")
+            {
+                this.forwardBoxFront(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "LEFT")
+            {
+                this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "RIGHT")
+            {
+                this.forwardBoxRight(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "SIDE")
+            {
+                this.forwardBoxBack(shape, context, halfExtents, operation.successor);
+                this.forwardBoxFront(shape, context, halfExtents, operation.successor);
+                this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
+                this.forwardBoxRight(shape, context, halfExtents, operation.successor);
+            }
+            else if (operation.semanticSelector == "ALL")
+            {
+                this.forwardBoxTop(shape, context, halfExtents, operation.successor);
+                this.forwardBoxBottom(shape, context, halfExtents, operation.successor);
+                this.forwardBoxBack(shape, context, halfExtents, operation.successor);
+                this.forwardBoxFront(shape, context, halfExtents, operation.successor);
+                this.forwardBoxLeft(shape, context, halfExtents, operation.successor);
+                this.forwardBoxRight(shape, context, halfExtents, operation.successor);
+            }
+            else
+                // FIXME: checking invariants
+                throw new Error("unknown semantic selector");
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -232,11 +356,11 @@ shapegrammar.interpreter = (function() {
         var x = (this.x > 0) ? this.x : shape.size.x * Math.abs(this.x);
         var y = (this.y > 0) ? this.y : shape.size.y * Math.abs(this.y);
         var z = (this.z > 0) ? this.z : shape.size.z * Math.abs(this.z);
-        context.forward(this.operation, {
-            type: shape.type,
-            model: shape.model.clone(),
-            size: new THREE.Vector3(x, y, z)
-        });
+        var newShape = cloneShape(shape);
+        newShape.scope.s.x = x;
+        newShape.scope.s.y = y;
+        newShape.scope.s.z = z;
+        context.forward(this.operation, newShape);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -247,11 +371,11 @@ shapegrammar.interpreter = (function() {
     }
 
     Rotate.prototype.apply = function(shape, context) {
-        context.forward(this.operation.apply, {
-            type: shape.type,
-            model: shape.model.clone().multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Vector3(this.x, this.y, this.z))),
-            size: shape.size
-        });
+        var newShape = cloneShape(shape);
+        newShape.scope.r.x += this.x;
+        newShape.scope.r.y += this.y;
+        newShape.scope.r.z += this.z;
+        context.forward(this.operation, newShape);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -262,53 +386,11 @@ shapegrammar.interpreter = (function() {
     }
 
     Translate.prototype.apply = function(shape, context) {
-        context.forward(this.operation, {
-            type: shape.type,
-            model: shape.model.clone().multiply(new THREE.Matrix4().makeTranslation(this.x, this.y, this.z)),
-            size: shape.size
-        });
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    var Axis = {X:null, Y:null, Z:null};
-    function parseAxis(value) {
-        value = value.trim().toUpperCase();
-        if (!(value in Axis))
-            throw new Error(value + " is not an axis");
-        return value;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    var ComponentSelector = {F:null, E:null, V:null};
-    function parseComponentSelector(value) {
-        value = value.trim().toUpperCase();
-        if (!(value in ComponentSelector))
-            throw new Error(value + " is not a component selector");
-        return value;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    var SemanticSelector = { FRONT:null, BACK:null, LEFT:null, RIGHT:null, TOP:null, BOTTOM:null, SIDE:null, ALL:null };
-    function parseSemanticSelector(value) {
-        value = value.trim().toUpperCase();
-        if (!(value in SemanticSelector))
-            throw new Error(value + " is not a semantic selector");
-        return value;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
-    function parseComponentSplitOperator(value) {
-        if (value != ":" && value != "=")
-            throw new Error(value + " is not a comp operator");
-        return value;
+        var newShape = cloneShape(shape);
+        newShape.scope.t.x = this.x;
+        newShape.scope.t.y = this.y;
+        newShape.scope.t.z = this.z;
+        context.forward(this.operation, newShape);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -404,26 +486,91 @@ shapegrammar.interpreter = (function() {
             if (successor in this.rules)
                 this.forward(this.rules[successor], shape);
             else
-                this.createTerminal(shape);
+                this.terminals.push(shape);
         } else {
             successor.apply(shape, this);
         }
     }
 
-    Context.prototype.createTerminal = function(shape) {
-        var geometry;
-        if (shape.type == "Quad")
-        {
-            geometry = new THREE.PlaneGeometry(shape.size.x, shape.size.y);
-        } else if (shape.type == "Box") {
-            geometry = new THREE.BoxGeometry(shape.size.x, shape.size.y, shape.size.z);
-        } else
-            throw new Error(shape.type + " is not a supported terminal");
+    function createGeometry(type) {
+        if (type == "Box") {
+            return {
+                vertices: [
+                    /*0*/new THREE.Vector3(-0.5, 0.5, 0.5),
+                    /*1*/new THREE.Vector3(0.5, 0.5, 0.5),
+                    /*2*/new THREE.Vector3(0.5, 0.5, -0.5),
+                    /*3*/new THREE.Vector3(-0.5, 0.5, -0.5),
+                    /*4*/new THREE.Vector3(0.5, -0.5, -0.5),
+                    /*5*/new THREE.Vector3(-0.5, -0.5, -0.5),
+                    /*6*/new THREE.Vector3(-0.5, -0.5, 0.5),
+                    /*7*/new THREE.Vector3(0.5, -0.5, 0.5)
+                ],
+                normals: [
+                    new THREE.Vector3(0, 1, 0),
+                    new THREE.Vector3(0, -1, 0),
+                    new THREE.Vector3(0, 0, 1),
+                    new THREE.Vector3(0, 0, -1),
+                    new THREE.Vector3(1, 0, 0),
+                    new THREE.Vector3(-1, 0, 0)
+                ],
+                uvs: [
+                    new THREE.Vector2(0, 0),
+                    new THREE.Vector2(1, 1),
+                    new THREE.Vector2(0, 1),
+                    new THREE.Vector2(1, 0)
+                ],
+                faces: [
+                    // top
+                    [0,0,0], [1,0,1], [2,0,2],
+                    [0,0,0], [2,0,2], [3,0,3],
 
-        var material = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
-        var mesh = new THREE.Mesh(geometry, material);
-        mesh.applyMatrix(shape.model);
-        this.terminals.push(mesh);
+                    // bottom
+                    [4,1,0], [5,1,1], [6,1,2],
+                    [4,1,0], [6,1,2], [7,1,3],
+
+                    // back
+                    [6,2,0], [7,2,1], [1,2,2],
+                    [6,2,0], [1,2,2], [0,2,3],
+
+                    // front
+                    [4,3,0], [5,3,1], [3,3,2],
+                    [4,3,0], [3,3,2], [2,3,3],
+
+                    // right
+                    [7,4,0], [4,4,1], [2,4,2],
+                    [7,4,0], [2,4,2], [1,4,3],
+
+                    // left
+                    [6,5,0], [5,5,1], [3,5,2],
+                    [6,5,0], [3,5,2], [0,5,3]
+
+            ]};
+        } else if (type == "Quad") {
+            return {
+                vertices: [
+                    /*0*/new THREE.Vector3(-0.5, -0.5, 0.5),
+                    /*1*/new THREE.Vector3(0.5, -0.5, 0.5),
+                    /*2*/new THREE.Vector3(0.5, 0.5, 0.5),
+                    /*3*/new THREE.Vector3(-0.5, 0.5, 0.5)
+
+                ],
+                normals: [
+                    new THREE.Vector3(0, 0, 1)
+                ],
+                uvs: [
+                    new THREE.Vector2(0, 0),
+                    new THREE.Vector2(1, 1),
+                    new THREE.Vector2(0, 1),
+                    new THREE.Vector2(1, 0)
+                ],
+                faces: [
+                    // back
+                    [0,0,0], [1,0,1], [2,0,2],
+                    [0,0,0], [2,0,2], [3,0,3]
+
+                ]};
+        } else
+            throw new Error("unknown geometry type");
     }
 
     function interpret(axiom, symbol, parseTree) {
@@ -444,13 +591,31 @@ shapegrammar.interpreter = (function() {
         else
             rules[parseTree.predecessor] = createOperation(parseTree.successor);
         var terminals = [];
-        var model = new THREE.Matrix4();
-        model.setPosition(axiom.position);
         var context = new Context(rules, terminals);
         context.forward(symbol, {
-            type: axiom.type,
-            model: model,
-            size: axiom.size
+            initialShape: {
+                name: axiom.type,
+                startRule: symbol,
+                origin: {
+                    p: axiom.position.clone(),
+                    o: new THREE.Vector3(0, 0, 0)
+                }
+            },
+            scope: {
+                t: axiom.position.clone(),
+                r: new THREE.Vector3(0, 0, 0),
+                s: axiom.size.clone()
+            },
+            pivot: {
+                p: new THREE.Vector3(0, 0, 0),
+                o: new THREE.Vector3(0, 0, 0)
+            },
+            geometry: createGeometry(axiom.type),
+            comp: {
+                sel: null,
+                index: -1,
+                total: 0
+            }
         });
         return terminals;
     }
